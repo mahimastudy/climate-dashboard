@@ -1,105 +1,139 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
-import Navbar from "./components/Navbar";
+import "./App.css";
 import ClimateChart from "./components/ClimateChart";
-import KPICards from "./components/KPICards";
-
 import { climateDatasets } from "./data/climateDataReal";
 
-type TabKey = "co2" | "temperature" | "seaLevel";
+type DatasetKey = keyof typeof climateDatasets;
+
+const datasetOptions: Array<{ key: DatasetKey; label: string }> = [
+  { key: "co2", label: "CO2" },
+  { key: "temperature", label: "Temperature" },
+  { key: "seaLevel", label: "Sea Level" },
+];
+
+function latestValue(key: DatasetKey) {
+  const dataset = climateDatasets[key];
+  return dataset.data[dataset.data.length - 1].value;
+}
+
+function averageValue(key: DatasetKey) {
+  const values = climateDatasets[key].data.map((point) => point.value);
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function formatValue(value: number, unit: string) {
+  return `${value.toLocaleString(undefined, {
+    maximumFractionDigits: value < 10 ? 2 : 0,
+  })} ${unit}`;
+}
 
 export default function App() {
-  const [tab, setTab] = useState<TabKey>("co2");
+  const [datasetKey, setDatasetKey] = useState<DatasetKey>("co2");
+  const current = climateDatasets[datasetKey];
 
-  const current = climateDatasets[tab];
-  
-if (!current) {
-  return (
-    <div style={{ padding: "20px" }}>
-      <h2>Error: Dataset not found</h2>
-    </div>
+  const kpis = useMemo(
+    () => [
+      {
+        label: "Avg Temp",
+        value: formatValue(averageValue("temperature"), "C"),
+        detail: "Mean anomaly across available years",
+      },
+      {
+        label: "Sea Level Rise",
+        value: formatValue(latestValue("seaLevel"), "mm"),
+        detail: "Latest recorded level in this sample",
+      },
+      {
+        label: "CO2 ppm",
+        value: formatValue(latestValue("co2"), "ppm"),
+        detail: "Latest atmospheric concentration",
+      },
+      {
+        label: "Data Coverage",
+        value: `${current.data[0].year}-${current.data[current.data.length - 1].year}`,
+        detail: `${current.data.length} observations for ${current.title}`,
+      },
+    ],
+    [current]
   );
-}
-if (!current?.data) {
-  return (
-    <div style={{ padding: "20px" }}>
-      <h2>Loading climate data...</h2>
-    </div>
-  );
-}
+
+  const insights = [
+    "CO2 concentration climbs steadily through every decade in the sample.",
+    "Sea level rise accelerates after 2000, reaching the highest level in 2025.",
+    "Temperature anomaly remains above 1 C in the latest readings.",
+  ];
 
   return (
-    <div>
-      <Navbar />
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4 }}
-        style={{
-          padding: "20px",
-          maxWidth: "1100px",
-          margin: "0 auto",
-        }}
+    <main className="dashboard-shell">
+      <motion.section
+        className="dashboard"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
       >
-        <h1>🌍 Climate Analytics Dashboard</h1>
+        <header className="dashboard-header">
+          <div>
+            <p className="eyebrow">ClimateScope</p>
+            <h1>ClimateScope</h1>
+          </div>
 
-        <p style={{ color: "#555" }}>
-          Explore global climate trends using real-world data
-        </p>
+          <label className="dataset-select">
+            <span>Current Dataset</span>
+            <select
+              value={datasetKey}
+              onChange={(event) => setDatasetKey(event.target.value as DatasetKey)}
+            >
+              {datasetOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </header>
 
-        {/* Tabs */}
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            marginTop: "20px",
-            flexWrap: "wrap",
-          }}
-        >
-          <button style={buttonStyle} onClick={() => setTab("co2")}>
-            CO₂
-          </button>
-          <button
-            style={buttonStyle}
-            onClick={() => setTab("temperature")}
-          >
-            Temperature
-          </button>
-          <button
-            style={buttonStyle}
-            onClick={() => setTab("seaLevel")}
-          >
-            Sea Level
-          </button>
-        </div>
+        <section className="kpi-grid" aria-label="Climate metrics">
+          {kpis.map((kpi, index) => (
+            <motion.article
+              className="kpi-card"
+              key={kpi.label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.06 }}
+            >
+              <span>{kpi.label}</span>
+              <strong>{kpi.value}</strong>
+              <p>{kpi.detail}</p>
+            </motion.article>
+          ))}
+        </section>
 
-        {/* Title */}
-        <h2 style={{ marginTop: "25px" }}>
-          {current.title} ({current.unit})
-        </h2>
-
-        {/* KPI Cards */}
-        <KPICards data={current.data} />
-
-        {/* Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
+        <section className="chart-section">
+          <div className="section-heading">
+            <div>
+              <h2>Interactive Line Chart</h2>
+              <p>
+                {current.title} measured in {current.unit}
+              </p>
+            </div>
+            <span>{current.unit}</span>
+          </div>
           <ClimateChart data={current.data} />
-        </motion.div>
-      </motion.div>
-    </div>
+        </section>
+
+        <section className="insights-section">
+          <h2>Recent Climate Insights</h2>
+          <div className="insight-list">
+            {insights.map((insight) => (
+              <article className="insight-card" key={insight}>
+                {insight}
+              </article>
+            ))}
+          </div>
+        </section>
+      </motion.section>
+    </main>
   );
 }
-
-const buttonStyle = {
-  padding: "8px 12px",
-  border: "1px solid #ccc",
-  borderRadius: "6px",
-  backgroundColor: "#fff",
-  cursor: "pointer",
-};
